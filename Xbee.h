@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define DATA_MAX 80	// Maximum packet data size
+
 #ifdef XBEES2
 	typedef struct{
 		int len;
@@ -55,9 +57,6 @@ typedef struct {
 }addr64;
 
 // Public Functions
-float getRSSIPWM(void);
-int get16bitAddress(void);
-addr64 get64bitAddress(void);
 char getRSSI(void);
 void setPANID(int);
 
@@ -86,6 +85,20 @@ void setNewPacketCB(void (*funptr)(void));
  * This function is used to send AT commands to the Xbee module. The AT command is passed as a string.
  */
 void AT_Command(char, char, char, char*, int);
+
+/* get16bitAddress()
+ * =================
+ * This function calls the MY AT command and waits until the response frame is 
+ * received.
+ */
+int get16bitAddress(void);
+
+/* get64bitAddress()
+ * =================
+ * This function calls the MY AT command and waits until the response frame is 
+ * received.
+ */
+addr64 get64bitAddress(void);
 
 #ifdef XBEES2	// Series 2 only commands
 
