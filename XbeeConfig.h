@@ -10,11 +10,33 @@
 #define XBEECONFIG_H_
 #include "Xbee.h"
 
-#define XBEES1
+//#define XBEES2
+
+#ifdef XBEES1
+	//#define ID 1234
+	//#define AP 1
+
+
+
+#endif
+
+
+#ifdef XBEES2
+	//#define ID 1234
+
+
+
+#endif
+
+
+
+
 
 int XbeeSetup()
 {
-	//setPANID(1224);	// Set PAN ID
+	#ifdef ID
+		setPANID(1224);	// Set PAN ID
+	#endif
 	
 	
 	return 1;
