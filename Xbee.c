@@ -11,9 +11,6 @@ void rxISR();
 void receive_Msg(RxPacket*);
 void send_Msg(char*, int);
 void USART_vSendByte(char);
-void Init_Timer0(void);
-void killTimer(void);
-float getTime_us(void);
 void XbeeUSART_init(void);
 
 #include "XbeeHAL.h"
@@ -56,7 +53,7 @@ void USART_vSendByte(char Data)
 	// Wait if a byte is being transmitted
 	while (TX_BUFFER_IS_FULL()) {}; // Do nothing until UDR is ready for more data to be written to it
 	// Transmit data
-	XBEE_UDR = Data;
+	XBEE_TDR = Data;
 }
 
 /* USART Receive Interrupt
@@ -68,9 +65,9 @@ void USART_vSendByte(char Data)
  */
 void rxISR()
 {
-	cli();
+	DIS_INT();
 	TOGGLE_LED();
-	if(XBEE_UDR == 0x7E)
+	if(XBEE_RDR == 0x7E)
 	{
 		RxPacket pkt;
 		receive_Msg(&pkt);
@@ -81,7 +78,7 @@ void rxISR()
 	}
 	
 	TOGGLE_LED();
-	sei();
+	EN_INT();
 }
 
 /* Send Message Function
@@ -116,12 +113,12 @@ void receive_Msg(RxPacket *rx_data)
 	rx_data->data_len = 0;
 	
 	while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
-	temp = XBEE_UDR;	//next incoming byte is the MSB of the data size
+	temp = XBEE_RDR;	//next incoming byte is the MSB of the data size
 	while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
 
-	rx_data->len = (temp << 8) | XBEE_UDR;	//merge LSB and MSB to obtain data length
+	rx_data->len = (temp << 8) | XBEE_RDR;	//merge LSB and MSB to obtain data length
 	while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
-	rx_data->api_identifier = XBEE_UDR;
+	rx_data->api_identifier = XBEE_RDR;
 	
 	switch(rx_data->api_identifier)	// Select proper sequence for receiving various packet types
 	{
@@ -131,54 +128,54 @@ void receive_Msg(RxPacket *rx_data)
 			{
 				while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
 				if(count == 1)
-				rx_data->source_addr_16bit = (XBEE_UDR << 8);
+				rx_data->source_addr_16bit = (XBEE_RDR << 8);
 				else if(count == 2)
-				rx_data->source_addr_16bit |= XBEE_UDR;
+				rx_data->source_addr_16bit |= XBEE_RDR;
 				else if(count == 3)
-				rx_data->rssi_byte = XBEE_UDR;
+				rx_data->rssi_byte = XBEE_RDR;
 				else if(count == 4)
-				rx_data->options = XBEE_UDR;
+				rx_data->options = XBEE_RDR;
 				else
 				{
-					rx_data->data[count - 5] = XBEE_UDR;
+					rx_data->data[count - 5] = XBEE_RDR;
 					rx_data->data_len++;
 				}
 			}
 			while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
-			rx_data->checksum = XBEE_UDR;	//store checksum
+			rx_data->checksum = XBEE_RDR;	//store checksum
 			break;
 		case 0x82:	// RX (Receive) Packet: 64-bit Address IO (Series 1 only)
 			for(count = 1; count < rx_data->len; count++)
 			{
 				while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
 				if(count == 1)
-				rx_data->DH = ((long)XBEE_UDR << 24);
+				rx_data->DH = ((long)XBEE_RDR << 24);
 				else if(count == 2)
-				rx_data->DH |= ((long)XBEE_UDR << 16);
+				rx_data->DH |= ((long)XBEE_RDR << 16);
 				else if(count == 3)
-				rx_data->DH |= ((long)XBEE_UDR << 8);
+				rx_data->DH |= ((long)XBEE_RDR << 8);
 				else if(count == 4)
-				rx_data->DH |= (long)XBEE_UDR;
+				rx_data->DH |= (long)XBEE_RDR;
 				else if(count == 5)
-				rx_data->DL = ((long)XBEE_UDR << 24);
+				rx_data->DL = ((long)XBEE_RDR << 24);
 				else if(count == 6)
-				rx_data->DL |= ((long)XBEE_UDR << 16);
+				rx_data->DL |= ((long)XBEE_RDR << 16);
 				else if(count == 7)
-				rx_data->DL |= ((long)XBEE_UDR << 8);
+				rx_data->DL |= ((long)XBEE_RDR << 8);
 				else if(count == 8)
-				rx_data->DL |= (long)XBEE_UDR;
+				rx_data->DL |= (long)XBEE_RDR;
 				else if(count == 9)
-				rx_data->rssi_byte = XBEE_UDR;
+				rx_data->rssi_byte = XBEE_RDR;
 				else if(count == 10)
-				rx_data->options = XBEE_UDR;
+				rx_data->options = XBEE_RDR;
 				else
 				{
-					rx_data->data[count - 11] = XBEE_UDR;
+					rx_data->data[count - 11] = XBEE_RDR;
 					rx_data->data_len++;
 				}
 			}
 			while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
-			rx_data->checksum = XBEE_UDR;	//store checksum
+			rx_data->checksum = XBEE_RDR;	//store checksum
 			break;
 		#endif
 		case 0x88:	// AT Command
@@ -186,27 +183,27 @@ void receive_Msg(RxPacket *rx_data)
 			{
 				while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
 				if(count == 1)
-					rx_data->frame_id = XBEE_UDR;
+					rx_data->frame_id = XBEE_RDR;
 				else if(count == 2)
-					rx_data->AT_com[0] = XBEE_UDR;
+					rx_data->AT_com[0] = XBEE_RDR;
 				else if(count == 3)
-					rx_data->AT_com[1] = XBEE_UDR;
+					rx_data->AT_com[1] = XBEE_RDR;
 				else if(count == 4)
-					rx_data->status = XBEE_UDR;
+					rx_data->status = XBEE_RDR;
 				else
 				{
-					rx_data->data[count - 5] = XBEE_UDR;
+					rx_data->data[count - 5] = XBEE_RDR;
 					rx_data->data_len++;
 				}
 			}
 			while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
-			rx_data->checksum = XBEE_UDR;	//store checksum			
+			rx_data->checksum = XBEE_RDR;	//store checksum			
 			break;
 		case 0x8A:	// Modem Status
 			while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
-			rx_data->data[0] = XBEE_UDR;
+			rx_data->data[0] = XBEE_RDR;
 			while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
-			rx_data->checksum = XBEE_UDR;	//store checksum
+			rx_data->checksum = XBEE_RDR;	//store checksum
 			break;
 		#ifdef XBEES2
 		case 0x90:	// Zigbee Receive Packet (Series 2 only)
@@ -214,35 +211,35 @@ void receive_Msg(RxPacket *rx_data)
 			{
 				while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
 				if(count == 1)
-					rx_data->DH = ((long)XBEE_UDR << 24);
+					rx_data->DH = ((long)XBEE_RDR << 24);
 				else if(count == 2)
-					rx_data->DH |= ((long)XBEE_UDR << 16);
+					rx_data->DH |= ((long)XBEE_RDR << 16);
 				else if(count == 3)
-					rx_data->DH |= ((long)XBEE_UDR << 8);
+					rx_data->DH |= ((long)XBEE_RDR << 8);
 				else if(count == 4)
-					rx_data->DH |= (long)XBEE_UDR;
+					rx_data->DH |= (long)XBEE_RDR;
 				else if(count == 5)
-					rx_data->DL = ((long)XBEE_UDR << 24);
+					rx_data->DL = ((long)XBEE_RDR << 24);
 				else if(count == 6)
-					rx_data->DL |= ((long)XBEE_UDR << 16);
+					rx_data->DL |= ((long)XBEE_RDR << 16);
 				else if(count == 7)
-					rx_data->DL |= ((long)XBEE_UDR << 8);
+					rx_data->DL |= ((long)XBEE_RDR << 8);
 				else if(count == 8)
-					rx_data->DL |= (long)XBEE_UDR;
+					rx_data->DL |= (long)XBEE_RDR;
 				else if(count == 9)
-					rx_data->source_addr_16bit = (int)(XBEE_UDR << 8);
+					rx_data->source_addr_16bit = (int)(XBEE_RDR << 8);
 				else if(count == 10)
-					rx_data->source_addr_16bit = (int)XBEE_UDR;
+					rx_data->source_addr_16bit = (int)XBEE_RDR;
 				else if(count == 11)
-					rx_data->options = XBEE_UDR;
+					rx_data->options = XBEE_RDR;
 				else
 				{
-					rx_data->data[count - 12] = XBEE_UDR;
+					rx_data->data[count - 12] = XBEE_RDR;
 					rx_data->data_len++;
 				}				
 			}
 			while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
-			rx_data->checksum = XBEE_UDR;	//store checksum
+			rx_data->checksum = XBEE_RDR;	//store checksum
 			break;
 		#endif
 		default:	// Catch unrecognized packet type
@@ -251,7 +248,7 @@ void receive_Msg(RxPacket *rx_data)
 				while (RX_BUFFER_IS_FULL()) {};
 			}
 			while (RX_BUFFER_IS_FULL()) {}; // Do nothing until data have been received and is ready to be read from UDR
-			rx_data->checksum = XBEE_UDR;	//store checksum
+			rx_data->checksum = XBEE_RDR;	//store checksum
 			break;
 	}
 	
@@ -279,7 +276,7 @@ void setPANID(int id)
 	//{
 		AT_Command(0x00, 'I', 'D', data, 2);	// Send MY AT Command
 	/*	while (RX_BUFFER_IS_FULL()){};	
-		temp = XBEE_UDR;
+		temp = XBEE_RDR;
 		if(temp == 0x7E)
 			receive_Msg(&rx_pkt);
 	} while (rx_pkt.api_identifier != 0x88);	// Catch Reply
@@ -288,6 +285,65 @@ void setPANID(int id)
 		printf("Setting ID to %d...\n", id);
 	#endif
 	EN_INT();
+}
+
+/* Function to get the RSSI value of the last received message in dB
+ *
+ * This function calls the DB AT command. It then waits for the returning packet.
+ * if the packet is not the returned DB value, then it is discarded.
+ * The returned value is the attenuation of the signal in -dB.
+ */
+char getRSSI(void)
+{
+	DIS_INT();
+	RxPacket pkt;
+	int temp;
+
+	AT_Command(0x01, 'D', 'B', 0, 0);	// Send DB AT Command
+	while (RX_BUFFER_IS_FULL()){};	
+	temp = XBEE_RDR;	// Probably should add some code to check for start delimeter
+	receive_Msg(&pkt);
+
+	if(pkt.api_identifier != 0x88)	
+	{
+		#ifdef DEBUG
+			printf("Failed to retrieve RSSI\n");
+		#endif
+		// otherwise, handle the packet as usual
+		if(cb)
+			(*cbFunPtr)();
+		EN_INT();
+		return 0xFF;
+	}	
+	else
+	{
+		#ifdef DEBUG
+			printf("RSSI is -%u dB\n", pkt.data[0]);
+		#endif
+		EN_INT();
+		return pkt.data[0];	// Return RSSI value		
+	}	
+
+}
+
+/* Callback function for new packets
+ *
+ * The user passes the name of their designated callback function. The function's address is
+ * then set to the callback fuction pointer, cbFunPtr. The callback flag, cb, is set.
+ */
+void setNewPacketCB(void (*funptr)())
+{
+	cb = 1;
+	cbFunPtr = funptr;
+}
+
+/* Get Packet
+ *
+ * Returns the last received packet.
+ */
+RxPacket getPacket()
+{
+	return rx_pkt;
 }
 
 /* Function to return the 16 bit Address of the Xbee
@@ -303,7 +359,7 @@ int get16bitAddress()
 	
 	AT_Command(0x01, 'M', 'Y', 0, 0);	// Send DB AT Command
 	while (RX_BUFFER_IS_FULL()){};	
-	temp = XBEE_UDR;	// Probably should add some code to check for start delimeter
+	temp = XBEE_RDR;	// Probably should add some code to check for start delimeter
 	receive_Msg(&pkt);
 
 	if(pkt.api_identifier != 0x88)	
@@ -319,7 +375,7 @@ int get16bitAddress()
 	}	
 	else
 	{
-		#ifdef DEBUG
+		#ifdef DEBUG2
 			printf("MY is %u\n", (pkt.data[0]<<8)|pkt.data[1]);
 		#endif
 		EN_INT();
@@ -360,7 +416,7 @@ addr64 get64bitAddress()
 	{
 		AT_Command(0x01, 'S', 'H', 0, 0);	// Send SH AT Command
 		while (RX_BUFFER_IS_FULL()){};
-		temp = XBEE_UDR;
+		temp = XBEE_RDR;
 		receive_Msg(&pkt);
 	} while (pkt.api_identifier != 0x88);	// Waiting for response packet
 	SH |= ((long)pkt.data[0]<< 24);
@@ -370,14 +426,15 @@ addr64 get64bitAddress()
 
 	/* SH has the higher 32 bit address*/
 	#ifdef DEBUG
-	printf("SH is %lu\n", SH);
+	printf("\nSH is %lx\n", SH);
 	#endif
 	
 	do
 	{
 		AT_Command(0x01, 'S', 'L', 0, 0);	// Send SL AT Command
+		
 		while (RX_BUFFER_IS_FULL()){};
-		temp = XBEE_UDR;
+		temp = XBEE_RDR;
 		receive_Msg(&pkt);
 	} while (pkt.api_identifier != 0x88);	// Waiting for response packet
 	SL |= ((long)pkt.data[0]<< 24);
@@ -387,120 +444,15 @@ addr64 get64bitAddress()
 	/* SL has the higher 32 bit address*/
 
 	#ifdef DEBUG
-	printf("SL is %lu\n", SL);
+	printf("\nSL is %lx\n", SL);
 	#endif
 	
 	addr64 address_64;
-	address_64.sh=SH;
-	address_64.sl=SL;
+	address_64.sh = SH;
+	address_64.sl = SL;
 
 	EN_INT();
 	return address_64; // Return 64 bit address structure adr664
-}
-
-/* Function to get the RSSI value of the last received message in dB
- *
- * This function calls the DB AT command. It then waits for the returning packet.
- * if the packet is not the returned DB value, then it is discarded.
- * The returned value is the attenuation of the signal in -dB.
- */
-char getRSSI(void)
-{
-	DIS_INT();
-	RxPacket pkt;
-	int temp;
-
-	AT_Command(0x01, 'D', 'B', 0, 0);	// Send DB AT Command
-	while (RX_BUFFER_IS_FULL()){};	
-	temp = XBEE_UDR;	// Probably should add some code to check for start delimeter
-	receive_Msg(&pkt);
-
-	if(pkt.api_identifier != 0x88)	
-	{
-		#ifdef DEBUG
-			printf("Failed to retrieve RSSI\n");
-		#endif
-		// otherwise, handle the packet as usual
-		if(cb)
-			(*cbFunPtr)();
-		EN_INT();
-		return 0xFF;
-	}	
-	else
-	{
-		#ifdef DEBUG
-			printf("RSSI is -%u dB\n", pkt.data[0]);
-		#endif
-		EN_INT();
-		return pkt.data[0];	// Return RSSI value		
-	}	
-
-}
-
-/* Function to get RSSI from the PWM pin on the XBee
- *
- * This function returns the high time in microseconds from the PWM signal with corresponds to
- * the RSSI of the last received message. This is accomplished by starting and stopping an 8-bit
- * timer.
- */
-float getRSSIPWM(void)
-{
-	//char RSSI;
-	float time_us = 0.0;
-	
-	Init_Timer0();
-	while(bit_is_set(PIND, PORTD3) && (TCNT0 != 50));
-	killTimer();
-	while(bit_is_clear(PIND, PORTD3));
-	Init_Timer0();
-	while(bit_is_set(PIND, PORTD3) && (TCNT0 != 50));
-	#ifdef DEBUG
-		printf("TCNT0 is %d\n", TCNT0);
-	#endif
-	killTimer();
-	
-	return time_us/200.0;
-}
-
-/* This function is under construction, and is not guaranteed to work for all uC's */
-void Init_Timer0(void)
-{
-	TCNT0 = 0;	// clear count value
-	TCCR0B = 0x03;	// Select clk/64
-}
-
-/* This function is under construction, and is not guaranteed to work for all uC's */
-void killTimer(void)
-{
-	TCCR0B = 0x00; // disable clk
-	TCNT0 = 0;	// clear count value
-}
-
-/* This function is under construction, and is not guaranteed to work for all uC's */
-float getTime_us(void)
-{
-	return (float)TCNT0*(1.0/((float)F_CPU/64.0));
-	
-}
-
-/* Callback function for new packets
- *
- * The user passes the name of their designated callback function. The function's address is
- * then set to the callback fuction pointer, cbFunPtr. The callback flag, cb, is set.
- */
-void setNewPacketCB(void (*funptr)())
-{
-	cb = 1;
-	cbFunPtr = funptr;
-}
-
-/* Get Packet
- *
- * Returns the last received packet.
- */
-RxPacket getPacket()
-{
-	return rx_pkt;
 }
 
 // XBee Series 2 only functions
@@ -513,7 +465,7 @@ void ZigBee_TX_Request(char Frame_ID, long DH, long DL, int _16bitAddr, char Hop
 	// ZigBee Transmit Request API Identifier
 	buff[0] = 0x10;
 	// Identifies the UART data frame for the host to correlate with a 
-	// subsequent ACK (acknowledgment). Setting Frame ID to ‘0' will disable response frame.
+	// subsequent ACK (acknowledgment). Setting Frame ID to â€˜0' will disable response frame.
 	buff[1] = Frame_ID;	
 	// MSB first, LSB last. Broadcast = 0x000000000000FFFF
 	buff[2] = (DH >> 24);
@@ -543,7 +495,8 @@ void ZigBee_TX_Request(char Frame_ID, long DH, long DL, int _16bitAddr, char Hop
 void TX_Request_16bit(char frameID, int addr, char options, char *data, int len)
 {
 	int i; // counting variable
-	char buff[5 + len];	//temporary buffer for transmitting
+	//char buff[5 + len];	//temporary buffer for transmitting
+	char buff[5 + DATA_MAX];
 	// Transmit Request 16-bit API Identifier
 	buff[0] = 0x01;
 	// Identifies the UART data frame for the host to correlate with a
@@ -562,7 +515,8 @@ void TX_Request_16bit(char frameID, int addr, char options, char *data, int len)
 void TX_Request_64bit(char frameID, long DH, long DL, char options, char *data, int len)
 {
 	int i; // counting variable
-	char buff[11 + len];	//temporary buffer for transmitting
+	//char buff[11 + len];	//temporary buffer for transmitting
+	char buff[11 + DATA_MAX];
 	// Transmit Request 16-bit API Identifier
 	buff[0] = 0x01;
 	// Identifies the UART data frame for the host to correlate with a
